@@ -1,107 +1,69 @@
-import type {Dispatch, SetStateAction} from 'react';
-import {BottomSheet, Button, ListItem, Text} from '@rneui/themed';
-import {useState, useEffect} from 'react';
-import {View} from 'react-native';
+import {Button, Text} from '@rneui/themed';
+import {useState, useMemo} from 'react';
+import {View, ActivityIndicator} from 'react-native';
+import {getDatesBetweenDates} from '../utils';
+import {useDispatch} from 'react-redux';
+import {setTransactions} from '../store/transactionsSlice';
+import {format} from 'date-fns';
 import ITransaction from '../interfaces/ITransaction';
 import RealmContext from '../RealmContext';
-import _ from 'lodash';
-import moment from 'moment';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import CategoryModal from './modals/CategoryModal';
+import PayeeModal from './modals/PayeeModal';
+import DateModal from './modals/DateModal';
 
-type Props = {
-  transactions: ITransaction[];
-  setTransactions: Dispatch<SetStateAction<ITransaction[]>>;
-};
-
-const ChooseFilter = ({transactions, setTransactions}: Props) => {
-  const {useQuery, useRealm} = RealmContext;
+const ChooseFilter = () => {
+  const {useQuery} = RealmContext;
 
   const allTransactions = useQuery<ITransaction>('Transaction');
 
-  const categories = [
-    ...new Set(allTransactions.map(item => item.category.name)),
-  ];
-  const payees = [...new Set(allTransactions.map(item => item.payee.name))];
-  const dates = [...new Set(allTransactions.map(item => item.date))];
+  const categories = useMemo(
+    () => [...new Set(allTransactions.map(item => item.category.name))],
+    [],
+  );
+  const payees = useMemo(
+    () => [...new Set(allTransactions.map(item => item.payee.name))],
+    [],
+  );
+  const dates = useMemo(
+    () => [
+      ...new Set(allTransactions.map(item => format(item.date, 'd/M/yyyy'))),
+    ],
+    [],
+  );
 
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [isPayeeModalVisible, setIsPayeeModalVisible] = useState(false);
   const [isDateModalVisible, setIsDateModalVisible] = useState(false);
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([
-    ...new Set(allTransactions.map(item => item.category.name)),
-  ]);
-  const [selectedPayees, setSelectedPayees] = useState<string[]>([
-    ...new Set(allTransactions.map(item => item.payee.name)),
-  ]);
+  const [selectedCategories, setSelectedCategories] =
+    useState<string[]>(categories);
+  const [selectedPayees, setSelectedPayees] = useState<string[]>(payees);
 
-  const [isStartDatePickerVisible, setStartDatePickerVisibility] =
-    useState(false);
-  const [isEndDatePickerVisible, setEndDatePickerVisibility] = useState(false);
-  const [startDate, setStartDate] = useState<moment.Moment | null>(null);
-  const [endDate, setEndDate] = useState<moment.Moment | null>(null);
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
 
-  const [marginTop, setMarginTop] = useState(0);
+  const [isBusy, setIsBusy] = useState(false);
 
-  const toggleStartDatePickerVisibility = () => {
-    setStartDatePickerVisibility(prev => !prev);
-  };
-
-  const handleStartDateConfirm = (date: Date) => {
-    console.log('A start date has been picked: ', {
-      date,
-      momentDate: moment(date),
-    });
-    setStartDate(moment(date));
-    toggleStartDatePickerVisibility();
-  };
-
-  const toggleEndDatePickerVisibility = () => {
-    setEndDatePickerVisibility(prev => !prev);
-  };
-
-  const handleEndDateConfirm = (date: Date) => {
-    console.log('An end date has been picked: ', {
-      date,
-      momentDate: moment(date).toLocaleString(),
-    });
-    setEndDate(moment(date));
-    toggleEndDatePickerVisibility();
-  };
-
-  const getDatesBetweenDates = (
-    startDate: moment.Moment,
-    endDate: moment.Moment,
-  ) => {
-    let dates: string[] = [];
-    let currentDate = moment(startDate).startOf('day');
-    let stopDate = moment(endDate).startOf('day');
-    while (currentDate <= stopDate) {
-      dates.push(moment(currentDate).format('D/M/YYYY'));
-      currentDate = moment(currentDate).add(1, 'days');
-    }
-    return dates;
-  };
+  const dispatch = useDispatch();
 
   const applyFilter = () => {
     if (!(selectedCategories.length > 0) || !(selectedPayees.length > 0))
       return;
 
+    setIsBusy(true);
+
     const isDatesAvailable = startDate && endDate;
 
-    const dates = isDatesAvailable
-      ? getDatesBetweenDates(startDate, endDate)
-      : [];
+    const selectedDates = isDatesAvailable
+      ? getDatesBetweenDates(startDate, endDate) // <=== 😁
+      : dates;
 
-    console.log({dates});
-
-    const filteredTransactions = allTransactions
-      .filter(item => selectedCategories.includes(item.category.name))
-      .filter(item => selectedPayees.includes(item.payee.name))
-      .filter(item => {
-        console.log(`${item.date} - ${dates.includes(item.date)}`);
-        return dates.includes(item.date);
-      });
+    const filteredTransactions = allTransactions.filter(
+      item =>
+        selectedCategories.includes(item.category.name) &&
+        selectedPayees.includes(item.payee.name) &&
+        selectedDates.includes(format(item.date, 'd/M/yyyy')),
+    );
 
     const result = filteredTransactions.map(item => ({
       _id: item._id,
@@ -111,7 +73,11 @@ const ChooseFilter = ({transactions, setTransactions}: Props) => {
       payee: item.payee,
     }));
 
-    setTransactions(result);
+    console.log('ChooseFilter.tsx 80', {result});
+
+    dispatch(setTransactions(result));
+
+    setIsBusy(false);
 
     console.log('applied filter');
   };
@@ -125,21 +91,13 @@ const ChooseFilter = ({transactions, setTransactions}: Props) => {
       payee: item.payee,
     }));
 
-    setTransactions(result);
+    dispatch(setTransactions(result));
 
     console.log('reset filter');
   };
 
-  useEffect(() => {
-    setMarginTop(
-      [...new Set(transactions.map(item => item.category.name))].length > 4
-        ? 300
-        : 0,
-    );
-  }, [transactions]);
-
   return (
-    <View style={{marginTop}}>
+    <View>
       <Text
         h3
         h3Style={{color: '#eee', textAlign: 'center', marginVertical: 24}}>
@@ -185,15 +143,19 @@ const ChooseFilter = ({transactions, setTransactions}: Props) => {
         </Button>
       </View>
 
-      <Button
-        buttonStyle={{backgroundColor: 'darkgreen', borderRadius: 8}}
-        containerStyle={{
-          marginHorizontal: 10,
-        }}
-        titleStyle={{fontSize: 20}}
-        onPress={applyFilter}>
-        Apply Filter
-      </Button>
+      {isBusy ? (
+        <ActivityIndicator size={24} color="#eee" style={{marginVertical: 8}} />
+      ) : (
+        <Button
+          buttonStyle={{backgroundColor: 'darkgreen', borderRadius: 8}}
+          containerStyle={{
+            marginHorizontal: 10,
+          }}
+          titleStyle={{fontSize: 20}}
+          onPress={applyFilter}>
+          Apply Filter
+        </Button>
+      )}
 
       <Button
         buttonStyle={{backgroundColor: 'darkgreen', borderRadius: 8}}
@@ -206,113 +168,30 @@ const ChooseFilter = ({transactions, setTransactions}: Props) => {
         Reset Filter
       </Button>
 
-      <BottomSheet isVisible={isCategoryModalVisible} modalProps={{}}>
-        {categories.map((item, i) => (
-          <ListItem
-            key={i}
-            onPress={() =>
-              setSelectedCategories(prev =>
-                prev.find(x => x === item)
-                  ? prev.filter(x => x !== item)
-                  : [...prev, item],
-              )
-            }
-            containerStyle={{backgroundColor: '#111'}}>
-            <ListItem.Content>
-              <ListItem.Title
-                style={{
-                  color: selectedCategories.find(x => x === item)
-                    ? 'rgb(26, 255, 146)'
-                    : '#fff',
-                }}>
-                {item}
-              </ListItem.Title>
-            </ListItem.Content>
-          </ListItem>
-        ))}
+      <CategoryModal
+        setSelectedCategories={setSelectedCategories}
+        selectedCategories={selectedCategories}
+        categories={categories}
+        visible={isCategoryModalVisible}
+        setVisible={setIsCategoryModalVisible}
+      />
 
-        <ListItem
-          containerStyle={{backgroundColor: 'rgba(26, 255, 146, 0.6)'}}
-          onPress={() => setIsCategoryModalVisible(false)}>
-          <ListItem.Content>
-            <ListItem.Title style={{color: '#fff'}}>Confirm</ListItem.Title>
-          </ListItem.Content>
-        </ListItem>
-      </BottomSheet>
+      <PayeeModal
+        setSelectedPayees={setSelectedPayees}
+        selectedPayees={selectedPayees}
+        payees={payees}
+        visible={isPayeeModalVisible}
+        setVisible={setIsPayeeModalVisible}
+      />
 
-      <BottomSheet isVisible={isPayeeModalVisible} modalProps={{}}>
-        {payees.map((item, i) => (
-          <ListItem
-            onPress={() =>
-              setSelectedPayees(prev =>
-                prev.find(x => x === item)
-                  ? prev.filter(x => x !== item)
-                  : [...prev, item],
-              )
-            }
-            key={i}
-            containerStyle={{backgroundColor: '#111'}}>
-            <ListItem.Content>
-              <ListItem.Title
-                style={{
-                  color: selectedPayees.find(x => x === item)
-                    ? 'rgb(26, 255, 146)'
-                    : '#fff',
-                }}>
-                {item}
-              </ListItem.Title>
-            </ListItem.Content>
-          </ListItem>
-        ))}
-
-        <ListItem
-          containerStyle={{backgroundColor: 'rgba(26, 255, 146, 0.6)'}}
-          onPress={() => setIsPayeeModalVisible(false)}>
-          <ListItem.Content>
-            <ListItem.Title style={{color: '#fff'}}>Confirm</ListItem.Title>
-          </ListItem.Content>
-        </ListItem>
-      </BottomSheet>
-
-      <BottomSheet isVisible={isDateModalVisible} modalProps={{}}>
-        <View>
-          <Button
-            title={
-              startDate
-                ? startDate.toDate().toLocaleDateString()
-                : 'Select Start Date'
-            }
-            onPress={toggleStartDatePickerVisibility}
-          />
-          <DateTimePickerModal
-            isVisible={isStartDatePickerVisible}
-            mode="date"
-            onConfirm={handleStartDateConfirm}
-            onCancel={toggleStartDatePickerVisibility}
-          />
-          <Button
-            title={
-              endDate
-                ? endDate.toDate().toLocaleDateString()
-                : 'Select End Date'
-            }
-            onPress={toggleEndDatePickerVisibility}
-          />
-          <DateTimePickerModal
-            isVisible={isEndDatePickerVisible}
-            mode="date"
-            onConfirm={handleEndDateConfirm}
-            onCancel={toggleEndDatePickerVisibility}
-          />
-        </View>
-        <ListItem
-          containerStyle={{backgroundColor: 'rgba(26, 255, 146, 0.6)'}}
-          onPress={() => setIsDateModalVisible(false)}>
-          <ListItem.Content>
-            <ListItem.Title style={{color: '#fff'}}>Confirm</ListItem.Title>
-          </ListItem.Content>
-        </ListItem>
-      </BottomSheet>
+      <DateModal
+        startDate={startDate}
+        endDate={endDate}
+        setStartDate={setStartDate}
+        setEndDate={setEndDate}
+        visible={isDateModalVisible}
+        setVisible={setIsDateModalVisible}
+      />
     </View>
   );
 };

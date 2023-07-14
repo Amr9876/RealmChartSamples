@@ -7,7 +7,7 @@ interface ITransaction {
   amount: number;
   payee: IPayee;
   category: ICategory;
-  date: string;
+  date: Date;
 }
 
 export default ITransaction;

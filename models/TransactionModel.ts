@@ -14,14 +14,14 @@ class TransactionModel extends Realm.Object {
     amount: number,
     payee: IPayee,
     category: ICategory,
-    date?: string,
+    date?: Date,
   ): ITransaction {
     return {
       _id: new Realm.BSON.ObjectId(),
       amount,
       payee,
       category,
-      date: date === undefined ? new Date().toLocaleDateString() : date,
+      date: date || new Date(),
     };
   }
 
@@ -33,7 +33,7 @@ class TransactionModel extends Realm.Object {
       amount: 'double',
       payee: 'Payee',
       category: 'Category',
-      date: 'string',
+      date: 'date',
     },
   };
 }

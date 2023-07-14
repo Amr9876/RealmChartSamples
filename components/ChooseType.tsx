@@ -1,17 +1,17 @@
 import {View} from 'react-native';
-import React, {Dispatch, SetStateAction} from 'react';
+import React from 'react';
 import {Button} from '@rneui/themed';
+import {useSelector, useDispatch} from 'react-redux';
+import {getTransactionsState, setType} from '../store/transactionsSlice';
 
-type Props = {
-  type: 'category' | 'payee' | 'date';
-  setType: Dispatch<SetStateAction<'category' | 'payee' | 'date'>>;
-};
+const ChooseType = () => {
+  const {type} = useSelector(getTransactionsState);
+  const dispatch = useDispatch();
 
-const ChooseType = ({type, setType}: Props) => {
   return (
-    <View style={{flexDirection: 'row', marginBottom: 40, width: '100%'}}>
+    <View style={{flexDirection: 'row', width: '100%', marginTop: 20}}>
       <Button
-        onPress={() => setType('category')}
+        onPress={() => dispatch(setType('category'))}
         buttonStyle={{
           backgroundColor: '#222',
           borderWidth: 1,
@@ -26,7 +26,7 @@ const ChooseType = ({type, setType}: Props) => {
         Category
       </Button>
       <Button
-        onPress={() => setType('payee')}
+        onPress={() => dispatch(setType('payee'))}
         buttonStyle={{
           backgroundColor: '#222',
           borderWidth: 1,
@@ -41,7 +41,7 @@ const ChooseType = ({type, setType}: Props) => {
         Payee
       </Button>
       <Button
-        onPress={() => setType('date')}
+        onPress={() => dispatch(setType('date'))}
         buttonStyle={{
           backgroundColor: '#222',
           borderWidth: 1,

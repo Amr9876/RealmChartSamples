@@ -6,6 +6,7 @@ import TransactionModel from './models/TransactionModel';
 
 const config: Realm.Configuration = {
   schema: [PayeeModel, CategoryModel, TransactionModel],
+  deleteRealmIfMigrationNeeded: true,
 };
 
 export default createRealmContext(config);
